@@ -8,7 +8,7 @@ class NaiveBayesClassifier:
     def __init__(self):
         self.priors = {} #class->prior probability
         self.likelihoods = {} #feature_name, feature_value, class -> likelihood
-        self.feature_values = {} #feature_name -> set of possible values
+        self.features = {} #feature_name -> set of possible values
         self.classes = [1, 2, 3, 4, 5] #ratings
 
         self.train_data = None
@@ -17,36 +17,39 @@ class NaiveBayesClassifier:
     def load_data(self, filepath):
         self.train_data = pd.read_json(filepath)
 
-        #hardcode the small features values for now
-        self.feature_values["user_gender"] = {"M", "F"}
-        self.feature_values["user_occupation"] = set(self.train_data["user_occupation"].unique())
+        # #hardcode the small features values for now, change this
+        # self.features["user_gender"] = {"M", "F"}
+        # self.features["user_occupation"] = set(self.train_data["user_occupation"].unique())
 
-        print(self.feature_values)
+        print(self.features)
 
 
-        for feature in self.train_data.columns:
-            print(f"Feature: {feature}")
+    def train(self, features):
+        #Extract features and their values
+        for feature in features:
+            self.features[feature] = set(self.train_data[feature].unique())
 
-    def train(self):
-        #Calculate priors
+        #Calculate priors (new)
         total_count = len(self.train_data)
+        class_counts = self.train_data["rating"].value_counts()
+
         for c in self.classes:
-            class_count = len(self.train_data[self.train_data["rating"] == c])
-            self.priors[c] = class_count / total_count
+            self.priors[c] = class_counts[c] / total_count
             print(f"Prior for class {c}: {self.priors[c]}")
 
         #Calculate likelihoods
-        for feature in self.feature_values.keys():
+        for feature in self.features.keys():
+            num_unique_values = len(self.features[feature])
             if feature not in self.likelihoods:
-                self.likelihoods[feature] = {} #define dictionary within likelihoods
-            for value in self.feature_values[feature]:
+                self.likelihoods[feature] = {} #initialize the new feature dict
+            for value in self.features[feature]:
                 if value not in self.likelihoods[feature]:
                     self.likelihoods[feature][value] = {}
                 for c in self.classes:
                     count_feature_class = len(self.train_data[(self.train_data[feature] == value) & (self.train_data["rating"] == c)])
-                    count_class = len(self.train_data[self.train_data["rating"] == c])
+                    count_class = class_counts[c]
                     #Using Laplace smoothing
-                    likelihood = (count_feature_class + 1) / (count_class + len(self.feature_values[feature]))
+                    likelihood = (count_feature_class + 1) / (count_class + num_unique_values)
                     self.likelihoods[feature][value][c] = likelihood
                     print(f"P({feature}={value}|class={c}) = {likelihood}")
 
@@ -56,23 +59,20 @@ class NaiveBayesClassifier:
         predictions = []
         
         # Iterate over each row in the test data
-        for index, row in test_data.iterrows():
-            scores = [] # best score predicts class
+        for index, instance in test_data.iterrows():
+            log_scores = {c: 0.0 for c in self.classes} # best score predicts class
             for c in self.classes:
                 #find class with maximum score
-                score = np.log(self.priors[c]) #P(c)
-                for feature in self.feature_values.keys():
-                    feature_value = row[feature]
-                    if feature_value in self.likelihoods[feature]:
-                        likelihood = self.likelihoods[feature][feature_value][c]
-                    else: #Not sure about this...
-                        # Handle unseen feature values with Laplace smoothing
-                        likelihood = 1 / (len(self.train_data[self.train_data["rating"] == c]) + len(self.feature_values[feature]))
-                    score += np.log(likelihood) #P(f|c)
+                log_scores[c] = np.log(self.priors[c]) #P(c)
+                for feature in self.features.keys(): #for each feature Fi
+                    value = instance[feature] #get the person's feature value f (occupation = "writer")
+                    if value in self.likelihoods[feature]: #get likelihood P(f|c)
+                        log_scores[c] += np.log(self.likelihoods[feature][value][c])
+                    else: #If we have never seen this value before MAYBE DELETE THIS< UNNESESARY?
+                        log_scores[c] += np.log(1 / (len(self.train_data[self.train_data["rating"] == c]) + len(self.features[feature])))
 
-                scores.append(score)
-            
-            predicted_class = self.classes[np.argmax(scores)]
+
+            predicted_class = max(log_scores, key=log_scores.get)
             if print_results:
                 print(f"Predicted class for test instance {index}: {predicted_class}")
             predictions.append(predicted_class)
@@ -98,7 +98,49 @@ if __name__ == "__main__":
 
     print(f"datasets are {train_set} and {test_set}")
     classifier = NaiveBayesClassifier()
+    features = ["user_gender", "user_occupation", "user_id", "item_id"]
     classifier.load_data(train_set)
-    classifier.train()
+    classifier.train(features)
     predictions = classifier.predict(test_set, print_results=False)
     classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
+
+    # #Pandas prep
+    # td = pd.read_json(train_set)
+
+    # #print first 5
+    # print(td.head())
+
+    # #get total number of instances
+    # total_instances = len(td)
+    # print(f"Total instances in training set: {total_instances}")
+
+    # #get all features
+    # feature_names = td.columns.tolist()
+    # print(f"Feature names: {feature_names}")
+
+    # #get a specific value from specific feature/class
+    # sample_occupation = td["user_occupation"].iloc[0]
+    # print(f"Sample occupation from first instance: {sample_occupation}")
+
+    # #get unique values for specific feature
+    # #NOT WORKING?
+    # unique_occupations = td["user_occupation"].unique()
+    # print(f"Unique occupations in training set: {unique_occupations}")
+
+    # # #get count of unique vlaues for specific feature
+    # # num_unique_occupations = td["user_occupation"].nunique()
+    # # print(f"Number of unique occupations: {num_unique_occupations} or also just use {len(unique_occupations)}")
+
+    # #get number of occurences of each feature value (useful for priors)
+    # ratings = td["rating"].value_counts()
+    # print(f"Rating counts:\n{ratings}")
+    # ratings[5] #get like a dict value
+
+    # #get subset of data where class is a specific value
+    # td_rating_5 = td[td['rating'] == 5]
+    # list_occupations_rating_5 = td_rating_5["user_occupation"].value_counts()
+    # print(f"Occupations for rating 5:\n{list_occupations_rating_5}")
+    # #
+    # numwriters_rating_5 = list_occupations_rating_5["writer"]
+    # print(f"Number of writers with rating 5: {numwriters_rating_5}")
+
