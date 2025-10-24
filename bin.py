@@ -1,10 +1,8 @@
+
 import pandas as pd
 import numpy as np
 import argparse
 import sys
-import string
-import nltk
-import re
 
 #NAIVE BAYES CLASSIFIER IMPLEMENTATION
 class NaiveBayesClassifier:
@@ -31,7 +29,6 @@ class NaiveBayesClassifier:
         #Extract features and their values
         for feature in features:
             self.features[feature] = set(self.train_data[feature].unique())
-            
 
         #Calculate priors (new)
         total_count = len(self.train_data)
@@ -55,27 +52,7 @@ class NaiveBayesClassifier:
                     #Using Laplace smoothing
                     likelihood = (count_feature_class + 1) / (count_class + num_unique_values)
                     self.likelihoods[feature][value][c] = likelihood
-                    #print(f"P({feature}={value}|class={c}) = {likelihood}")
-
-        if review:
-            #preprocess text to extract adjectives, each adjective is a binary feature. Compute likelihoods too
-            adj_list = self.preprocess_text(self.train_data)
-            print(f"Extracted {len(self.features)} features after text preprocessing.")
-            print(self.features)
-            for feature in list(self.features.keys())[len(features):]: #only the new adjective features
-                num_unique_values = len(self.features[feature])
-                if feature not in self.likelihoods:
-                    self.likelihoods[feature] = {} #initialize the new feature dict
-                for value in self.features[feature]:
-                    if value not in self.likelihoods[feature]:
-                        self.likelihoods[feature][value] = {}
-                    for c in self.classes:
-                        count_feature_class = self.train_data[self.train_data['rating'] == c]['user_review'].apply(lambda text: value in adj_list).sum()
-                        count_class = class_counts[c]
-                        #Using Laplace smoothing
-                        likelihood = (count_feature_class + 1) / (count_class + 2) #binary feature, so +2
-                        self.likelihoods[feature][value][c] = likelihood
-                        #print(f"P({feature}={value}|class={c}) = {likelihood}")
+                    print(f"P({feature}={value}|class={c}) = {likelihood}")
 
     #given filepath to test set, predict ratings
     def predict(self, filepath, print_results=False):
@@ -91,11 +68,11 @@ class NaiveBayesClassifier:
                 for feature in self.features.keys(): #for each feature Fi
                     value = instance[feature] #get the person's feature value f (occupation = "writer")
                     
-                    # #one approach is adding unknown feature value handling here
-                    # if value in self.likelihoods[feature]: #get likelihood P(f|c)
-                    #     log_scores[c] += np.log(self.likelihoods[feature][value][c])
-                    # else: #If we have never seen this value before MAYBE DELETE THIS< UNNESESARY?
-                    #     log_scores[c] += np.log(1 / (len(self.train_data[self.train_data["rating"] == c]) + len(self.features[feature])))
+                    #one approach is adding unknown feature value handling here
+                    if value in self.likelihoods[feature]: #get likelihood P(f|c)
+                        log_scores[c] += np.log(self.likelihoods[feature][value][c])
+                    else: #If we have never seen this value before MAYBE DELETE THIS< UNNESESARY?
+                        log_scores[c] += np.log(1 / (len(self.train_data[self.train_data["rating"] == c]) + len(self.features[feature])))
 
                     #other approach is to skip if unknown (apparently most common)
                     if value in self.likelihoods[feature]:
@@ -119,31 +96,10 @@ class NaiveBayesClassifier:
         return accuracy
     
     def preprocess_text(self, data):
-        #lowercase, remove punctuation, extract only adjectives, add as feature
+        #lowercase, remove punctuation, extract only adjectives
         adjective_list = set()
-        adjective_freq = {}
-        
-        translator = str.maketrans('', '', string.punctuation)
-        for text in data["user_review"]:
-            # Lowercase
-            text = text.lower()
-            # Remove punctuation
-            text = text.translate(translator)
-            # Tokenize
-            tokens = nltk.word_tokenize(text)
-            # POS tagging
-            pos_tags = nltk.pos_tag(tokens)
-            # Extract adjectives
-            for word, tag in pos_tags:
-                if tag.startswith('JJ'):  # Adjective tags start with 'JJ'
-                    adjective_freq[word] = adjective_freq.get(word, 0) + 1
-                    if adjective_freq[word] == 5:  # Add to set after appearing 5 times
-                        adj_word = "adj_" + re.sub(r'\W+', '', word)  # Clean word to form valid feature name
-                        self.features[adj_word] = {0, 1}  # Add adjective as a binary feature
-                        adjective_list.add(adj_word)
-        return adjective_list
 
-
+        translator 
 
 if __name__ == "__main__":
     train_set = sys.argv[1]
@@ -156,8 +112,9 @@ if __name__ == "__main__":
     print(f"datasets are {train_set} and {test_set}")
     classifier = NaiveBayesClassifier()
     features = ["user_gender", "user_occupation", "user_id", "item_id"]
+    fea
     classifier.load_data(train_set)
-    classifier.train(features)
+    classifier.train(features, review=True)
     predictions = classifier.predict(test_set, print_results=False)
     classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
 
