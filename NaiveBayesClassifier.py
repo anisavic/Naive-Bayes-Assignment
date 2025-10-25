@@ -21,9 +21,6 @@ class NaiveBayesClassifier:
         # self.features["user_gender"] = {"M", "F"}
         # self.features["user_occupation"] = set(self.train_data["user_occupation"].unique())
 
-        print(self.features)
-
-
     def train(self, features):
         #Extract features and their values
         for feature in features:
@@ -35,7 +32,6 @@ class NaiveBayesClassifier:
 
         for c in self.classes:
             self.priors[c] = class_counts[c] / total_count
-            print(f"Prior for class {c}: {self.priors[c]}")
 
         #Calculate likelihoods
         for feature in self.features.keys():
@@ -51,7 +47,7 @@ class NaiveBayesClassifier:
                     #Using Laplace smoothing
                     likelihood = (count_feature_class + 1) / (count_class + num_unique_values)
                     self.likelihoods[feature][value][c] = likelihood
-                    print(f"P({feature}={value}|class={c}) = {likelihood}")
+                    # print(f"P({feature}={value}|class={c}) = {likelihood}")
 
     #given filepath to test set, predict ratings
     def predict(self, filepath, print_results=False):
@@ -74,7 +70,7 @@ class NaiveBayesClassifier:
 
             predicted_class = max(log_scores, key=log_scores.get)
             if print_results:
-                print(f"Predicted class for test instance {index}: {predicted_class}")
+                print(predicted_class)
             predictions.append(predicted_class)
 
 
@@ -96,13 +92,12 @@ if __name__ == "__main__":
     #load into valid pandas dataframes
     
 
-    print(f"datasets are {train_set} and {test_set}")
     classifier = NaiveBayesClassifier()
     features = ["user_gender", "user_occupation", "user_id", "item_id"]
     classifier.load_data(train_set)
     classifier.train(features)
-    predictions = classifier.predict(test_set, print_results=False)
-    classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
+    predictions = classifier.predict(test_set, print_results=True)
+    # classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
 
     # #Pandas prep
     # td = pd.read_json(train_set)
