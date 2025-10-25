@@ -15,6 +15,7 @@ class NaiveBayesClassifier:
         self.classes = [1, 2, 3, 4, 5] #ratings
 
         self.train_data = None
+        self.adj_list = {}
 
 
     def load_data(self, filepath):
@@ -59,7 +60,7 @@ class NaiveBayesClassifier:
 
         if review:
             #preprocess text to extract adjectives, each adjective is a binary feature. Compute likelihoods too
-            adj_list = self.preprocess_text(self.train_data)
+            self.adj_list = self.preprocess_text(self.train_data)
             print(f"Extracted {len(self.features)} features after text preprocessing.")
             print(self.features)
             for feature in list(self.features.keys())[len(features):]: #only the new adjective features
@@ -70,15 +71,21 @@ class NaiveBayesClassifier:
                     if value not in self.likelihoods[feature]:
                         self.likelihoods[feature][value] = {}
                     for c in self.classes:
-                        count_feature_class = self.train_data[self.train_data['rating'] == c]['user_review'].apply(lambda text: value in adj_list).sum()
+                        #find number of instances where adjective is present and class = c
                         count_class = class_counts[c]
+                        class_c_data = self.train_data[self.train_data["rating"] == c]
+                        if value == 1:
+                            count_feature_class = len(class_c_data[class_c_data["user_review"].str.contains(feature[4:])])
+                        else: #value == 0
+                            count_feature_class = len(class_c_data) - len(class_c_data[class_c_data["user_review"].str.contains(feature[4:])])
+
                         #Using Laplace smoothing
                         likelihood = (count_feature_class + 1) / (count_class + 2) #binary feature, so +2
                         self.likelihoods[feature][value][c] = likelihood
                         #print(f"P({feature}={value}|class={c}) = {likelihood}")
 
     #given filepath to test set, predict ratings
-    def predict(self, filepath, print_results=False):
+    def predict(self, filepath, review = True, print_results=False):
         test_data = pd.read_json(filepath)
         predictions = []
         
@@ -89,7 +96,11 @@ class NaiveBayesClassifier:
                 #find class with maximum score
                 log_scores[c] = np.log(self.priors[c]) #P(c)
                 for feature in self.features.keys(): #for each feature Fi
-                    value = instance[feature] #get the person's feature value f (occupation = "writer")
+                    if feature.startswith("adj_"):
+                        feature_name = feature[4:]
+                        value = 1 if feature in instance["user_review"] else 0
+                    else:
+                        value = instance[feature] #get the person's feature value f (occupation = "writer")
                     
                     # #one approach is adding unknown feature value handling here
                     # if value in self.likelihoods[feature]: #get likelihood P(f|c)
@@ -101,7 +112,6 @@ class NaiveBayesClassifier:
                     if value in self.likelihoods[feature]:
                         log_scores[c] += np.log(self.likelihoods[feature][value][c])
                     
-
 
             predicted_class = max(log_scores, key=log_scores.get)
             if print_results:
@@ -137,8 +147,8 @@ class NaiveBayesClassifier:
             for word, tag in pos_tags:
                 if tag.startswith('JJ'):  # Adjective tags start with 'JJ'
                     adjective_freq[word] = adjective_freq.get(word, 0) + 1
-                    if adjective_freq[word] == 5:  # Add to set after appearing 5 times
-                        adj_word = "adj_" + re.sub(r'\W+', '', word)  # Clean word to form valid feature name
+                    if adjective_freq[word] == 15:  # Add to set after appearing 5 times
+                        adj_word = "adj_" + re.sub(r'\W+', '', word)  # Clean word to form valid feature name, need this?
                         self.features[adj_word] = {0, 1}  # Add adjective as a binary feature
                         adjective_list.add(adj_word)
         return adjective_list
@@ -200,4 +210,13 @@ if __name__ == "__main__":
     # #
     # numwriters_rating_5 = list_occupations_rating_5["writer"]
     # print(f"Number of writers with rating 5: {numwriters_rating_5}")
+
+
+    # class_c_data = td[td["rating"] == 3]
+    # feature_ex = "modest"
+    # #given class c data and feature value, get count of instances where feature value is present in class c
+    # count_feature_class = len(class_c_data[class_c_data["user_review"].str.contains(feature_ex)])
+    # print(f"Count of instances where review contains '{feature_ex}' and rating = 5: {count_feature_class}")
+
+
 
