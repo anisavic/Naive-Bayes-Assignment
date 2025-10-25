@@ -3,6 +3,30 @@ import numpy as np
 import argparse
 import sys
 
+def find_optimal_features(features, train, test):
+    best_feature_list = []
+    max_accuracy = 0.0
+
+    for i in range(1, 2**(len(features))):
+        current_features = []
+        feature_i = 0
+        format_size = "0" + str(len(features)) + "b"
+        for c in format(i, format_size):
+            if c == "1":
+                current_features.append(features[feature_i]) #change
+            feature_i+=1
+        current_model = NaiveBayesClassifier()
+        current_model.load_data(train)
+        current_model.train(current_features)
+        predictions = current_model.predict(test)
+        current_accuracy = current_model.evaluate(pd.read_json(test)["rating"].tolist(), predictions)
+        if current_accuracy > max_accuracy:
+            best_feature_list = current_features
+            max_accuracy = current_accuracy
+    
+    print(f"optimal feature list based on highest accuracy ({max_accuracy}) : {best_feature_list}")
+
+
 #NAIVE BAYES CLASSIFIER IMPLEMENTATION
 class NaiveBayesClassifier:
     def __init__(self):
@@ -82,6 +106,12 @@ class NaiveBayesClassifier:
         accuracy = correct / total
         print(f"Accuracy: {accuracy * 100:.2f}%")
         return accuracy
+    
+
+
+                    
+            # print(features_to_add)
+
 
 
 if __name__ == "__main__":
@@ -93,11 +123,14 @@ if __name__ == "__main__":
     
 
     classifier = NaiveBayesClassifier()
-    features = ["user_gender", "user_occupation", "user_id", "item_id"]
+    # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
+    features = ["item_id", "user_zip_code"]
     classifier.load_data(train_set)
     classifier.train(features)
     predictions = classifier.predict(test_set, print_results=True)
-    # classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
+    classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
+
+    # find_optimal_features(features, train_set, test_set)
 
     # #Pandas prep
     # td = pd.read_json(train_set)
