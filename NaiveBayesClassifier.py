@@ -1,7 +1,45 @@
 import pandas as pd
 import numpy as np
-import argparse
+import string
 import sys
+import re
+
+
+stop_words = {
+    'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
+    'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
+    'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves',
+    'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'is', 'are',
+    'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having', 'do', 'does',
+    'did', 'doing', 'a', 'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until',
+    'while', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into',
+    'through', 'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down',
+    'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here',
+    'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
+    'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
+    'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now', 'm', 'll', 're', 've', 'y'
+}
+
+#define punctuation translator
+translator = str.maketrans('','', string.punctuation)
+#given text, return unique set of words
+def preprocess_text(text):
+    
+    #lowercase
+    text = text.lower()
+
+    #punctuation removal
+    text = text.translate(translator)
+
+    text = re.sub(r'\d+', '', text)
+
+    tokens = re.findall(r'\b\w+\b', text)
+
+    tokens = [word for word in tokens if word not in stop_words]
+
+
+    return tokens
+
 
 def find_optimal_features(features, train, test):
     best_feature_list = []
@@ -88,8 +126,8 @@ class NaiveBayesClassifier:
                     value = instance[feature] #get the person's feature value f (occupation = "writer")
                     if value in self.likelihoods[feature]: #get likelihood P(f|c)
                         log_scores[c] += np.log(self.likelihoods[feature][value][c])
-                    else: #If we have never seen this value before MAYBE DELETE THIS< UNNESESARY?
-                        log_scores[c] += np.log(1 / (len(self.train_data[self.train_data["rating"] == c]) + len(self.features[feature])))
+                    # else: #If we have never seen this value before MAYBE DELETE THIS< UNNESESARY?
+                    #     log_scores[c] += np.log(1 / (len(self.train_data[self.train_data["rating"] == c]) + len(self.features[feature])))
 
 
             predicted_class = max(log_scores, key=log_scores.get)
@@ -118,9 +156,7 @@ if __name__ == "__main__":
     train_set = sys.argv[1]
     test_set = sys.argv[2]
     
-
-    #load into valid pandas dataframes
-    
+    # print(preprocess_text("Hi... I am sasha, how-are you? I feel pretty good about myself today."))
 
     classifier = NaiveBayesClassifier()
     # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
