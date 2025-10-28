@@ -40,7 +40,7 @@ def preprocess_text(text):
 
     return tokens
 
-
+#finds optimal categorical features
 def find_optimal_features(features, train, test):
     best_feature_list = []
     max_accuracy = 0.0
@@ -70,23 +70,47 @@ class NaiveBayesClassifier:
     def __init__(self):
         self.priors = {} #class->prior probability
         self.likelihoods = {} #feature_name, feature_value, class -> likelihood
-        self.features = {} #feature_name -> set of possible values
+        self.categorical_features = {}
+        self.user_review = False
         self.classes = [1, 2, 3, 4, 5] #ratings
+
+        self.vocab = set()
+        self.word_count_class = {}
+        self.total_words_class = {c: 0 for c in self.classes} # Initialize counts for each class
 
         self.train_data = None
 
 
-    def load_data(self, filepath):
+    def load_data(self, filepath, features, user_review = False):
         self.train_data = pd.read_json(filepath)
 
-        # #hardcode the small features values for now, change this
-        # self.features["user_gender"] = {"M", "F"}
-        # self.features["user_occupation"] = set(self.train_data["user_occupation"].unique())
 
-    def train(self, features):
+
+
         #Extract features and their values
         for feature in features:
-            self.features[feature] = set(self.train_data[feature].unique())
+            self.categorical_features[feature] = set(self.train_data[feature].unique())
+
+        #add all words to vocab
+        if user_review:
+            self.user_review = True
+            for index, instance in self.train_data.iterrows():
+                review_words = preprocess_text(instance["user_review"])
+                rating_class = instance["rating"]
+                for word in review_words:
+                    if word not in self.vocab: #if word not present, add to vocab and initialize val
+                        self.vocab.add(word)
+                        self.word_count_class[word] = {c: 0 for c in self.classes}
+                        
+                    if rating_class not in self.word_count_class[word]:
+                            self.word_count_class[word][rating_class] = 0 # Should not happen if initialized correctly
+                    self.word_count_class[word][rating_class] += 1 #increment 
+                    self.total_words_class[rating_class] += 1 #increment total number of unique words
+        
+                    
+
+
+    def train(self):
 
         #Calculate priors (new)
         total_count = len(self.train_data)
@@ -95,12 +119,12 @@ class NaiveBayesClassifier:
         for c in self.classes:
             self.priors[c] = class_counts[c] / total_count
 
-        #Calculate likelihoods
-        for feature in self.features.keys():
-            num_unique_values = len(self.features[feature])
+        #Calculate likelihoods for non-word features! Change
+        for feature in self.categorical_features.keys():
+            num_unique_values = len(self.categorical_features[feature])
             if feature not in self.likelihoods:
                 self.likelihoods[feature] = {} #initialize the new feature dict
-            for value in self.features[feature]:
+            for value in self.categorical_features[feature]:
                 if value not in self.likelihoods[feature]:
                     self.likelihoods[feature][value] = {}
                 for c in self.classes:
@@ -122,13 +146,25 @@ class NaiveBayesClassifier:
             for c in self.classes:
                 #find class with maximum score
                 log_scores[c] = np.log(self.priors[c]) #P(c)
-                for feature in self.features.keys(): #for each feature Fi
+                for feature in self.categorical_features.keys(): #for each feature Fi
                     value = instance[feature] #get the person's feature value f (occupation = "writer")
                     if value in self.likelihoods[feature]: #get likelihood P(f|c)
                         log_scores[c] += np.log(self.likelihoods[feature][value][c])
-                    # else: #If we have never seen this value before MAYBE DELETE THIS< UNNESESARY?
-                    #     log_scores[c] += np.log(1 / (len(self.train_data[self.train_data["rating"] == c]) + len(self.features[feature])))
+                
+                #Now, check whether user_review feature is on, if so, take the review,preprocess, and add those probabilities to it using wcc and twc
+                if self.user_review:
+                    u_review = instance["user_review"]
+                    words = preprocess_text(u_review)
+                    #for each word, if in vocab, add that log likelihood
+                    for word in words:
+                        if word in self.vocab: #only add if we have encountered word
+                            m = 0
+                            #find m for laplacian smoothing (m is mumber of instances of that word amongst all classes)
+                            for class_i in self.classes:
+                                m += self.word_count_class[word][class_i]
 
+                            likelihood = (self.word_count_class[word][c] + 1)/ (self.total_words_class[c] + m)
+                            log_scores[c] += np.log(likelihood)
 
             predicted_class = max(log_scores, key=log_scores.get)
             if print_results:
@@ -160,11 +196,11 @@ if __name__ == "__main__":
 
     classifier = NaiveBayesClassifier()
     # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
-    features = ["item_id", "user_zip_code"]
-    classifier.load_data(train_set)
-    classifier.train(features)
+    features = ["item_id", "user_zip_code", "user_review"]
+    classifier.load_data(train_set, features, True)
+    classifier.train()
     predictions = classifier.predict(test_set, print_results=True)
-    classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
+    # classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
 
     # find_optimal_features(features, train_set, test_set)
 
