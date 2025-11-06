@@ -35,10 +35,26 @@ def preprocess_text(text):
 
     tokens = re.findall(r'\b\w+\b', text)
 
-    tokens = [word for word in tokens if word not in stop_words]
+    # --- NEW CODE ---
+    # Create unigrams (single words) as before
+    unigrams = [word for word in tokens if word not in stop_words]
 
+    # Create bigrams (pairs of words)
+    # This will turn ["this", "was", "not", "good"] into ["not_good"]
+    bigrams = []
+    for i in range(len(tokens) - 1):
+        word1 = tokens[i]
+        word2 = tokens[i+1]
+        
+        # You can get fancy, but let's just skip stop words
+        if word1 not in stop_words or word2 not in stop_words:
+            # We join them with an underscore to treat "not_good" as a single token
+            bigrams.append(f"{word1}_{word2}")
 
-    return tokens
+    # Combine the lists. Your vocab will now contain 'good' AND 'not_good'
+    # --- END NEW CODE ---
+
+    return unigrams + bigrams # Return both single words and pairs
 
 #finds optimal categorical features, from feature list plus userreview
 def find_optimal_features(features, train, test):
@@ -220,13 +236,13 @@ if __name__ == "__main__":
     classifier = NaiveBayesClassifier()
     # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
     #For submission _UNCOMMENT_
-    features = ["user_zip_code", "user_id", "item_id"] #OPETIMAL FEATURE SET
+    features = ["user_zip_code", "user_id", "item_id"]#OPETIMAL FEATURE SET
     classifier.load_data(train_set, features, True)
     classifier.train()
     predictions = classifier.predict(test_set, print_results=True)
 
 
-    # #Optimization, comment when submission
+    #Optimization, comment when submission
     # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
     # feature_opt = [""]
     # classifier.load_data(train_set, features, True)
