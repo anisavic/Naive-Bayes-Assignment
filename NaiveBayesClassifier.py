@@ -15,9 +15,9 @@ stop_words = {
     'while', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into',
     'through', 'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down',
     'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here',
-    'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
-    'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
-    'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now', 'm', 'll', 're', 've', 'y'
+    'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few',
+    'most', 'other', 'some', 'such', 'no', 'nor', 'only', 'own', 'same', 'so',
+    'than', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now', 'm', 'll', 're', 've', 'y', "very", "not", "more", "no", "too"
 }
 
 #define punctuation translator
@@ -40,29 +40,39 @@ def preprocess_text(text):
 
     return tokens
 
-#finds optimal categorical features
+#finds optimal categorical features, from feature list plus userreview
 def find_optimal_features(features, train, test):
     best_feature_list = []
+    features_list = []
     max_accuracy = 0.0
 
-    for i in range(1, 2**(len(features))):
-        current_features = []
-        feature_i = 0
-        format_size = "0" + str(len(features)) + "b"
-        for c in format(i, format_size):
-            if c == "1":
-                current_features.append(features[feature_i]) #change
-            feature_i+=1
-        current_model = NaiveBayesClassifier()
-        current_model.load_data(train)
-        current_model.train(current_features)
-        predictions = current_model.predict(test)
-        current_accuracy = current_model.evaluate(pd.read_json(test)["rating"].tolist(), predictions)
-        if current_accuracy > max_accuracy:
-            best_feature_list = current_features
-            max_accuracy = current_accuracy
-    
-    print(f"optimal feature list based on highest accuracy ({max_accuracy}) : {best_feature_list}")
+    for train in ["training1.json", "training2.json"]:
+        for i in range(1, 2**(len(features))):
+            current_features = []
+            feature_i = 0
+            format_size = "0" + str(len(features)) + "b"
+            for c in format(i, format_size):
+                if c == "1":
+                    current_features.append(features[feature_i]) #change
+                feature_i+=1
+            current_model = NaiveBayesClassifier()
+            current_model.load_data(train, current_features, True)
+            current_model.train()
+            predictions = current_model.predict(test)
+            current_accuracy = current_model.evaluate(pd.read_json(test)["rating"].tolist(), predictions)
+            if current_accuracy > max_accuracy:
+                best_feature_list = current_features
+                max_accuracy = current_accuracy
+            features_list.append([current_accuracy, current_features])
+
+            
+        
+        print(f"optimal feature list based on highest accuracy ({max_accuracy}) : {best_feature_list}")
+        features_list.sort()
+        print(features_list[-5:])
+
+def preprocess_zipcode(zipcode, digits=5):
+    return str(zipcode)[:digits]
 
 
 #NAIVE BAYES CLASSIFIER IMPLEMENTATION
@@ -85,29 +95,42 @@ class NaiveBayesClassifier:
         self.train_data = pd.read_json(filepath)
 
 
-
+        word_frequencies = {}
 
         #Extract features and their values
         for feature in features:
-            self.categorical_features[feature] = set(self.train_data[feature].unique())
+                if feature == "user_zip_code":
+                    self.categorical_features[feature] = set(
+                        preprocess_zipcode(zip_code) 
+                        for zip_code in self.train_data[feature].unique()
+                    )
+                else:
+                    self.categorical_features[feature] = set(self.train_data[feature].unique())
 
         #add all words to vocab
         if user_review:
             self.user_review = True
+            # First pass: count frequencies
+            for index, instance in self.train_data.iterrows():
+                review_words = preprocess_text(instance["user_review"])
+                for word in review_words:
+                    word_frequencies[word] = word_frequencies.get(word, 0) + 1
+            
+            # Second pass: only add words that appear at least 5 times
+            MIN_FREQUENCY = 10
             for index, instance in self.train_data.iterrows():
                 review_words = preprocess_text(instance["user_review"])
                 rating_class = instance["rating"]
                 for word in review_words:
-                    if word not in self.vocab: #if word not present, add to vocab and initialize val
-                        self.vocab.add(word)
-                        self.word_count_class[word] = {c: 0 for c in self.classes}
+                    if word_frequencies[word] >= MIN_FREQUENCY:  # Only add frequent words
+                        if word not in self.vocab:
+                            self.vocab.add(word)
+                            self.word_count_class[word] = {c: 0 for c in self.classes}
                         
-                    if rating_class not in self.word_count_class[word]:
-                            self.word_count_class[word][rating_class] = 0 # Should not happen if initialized correctly
-                    self.word_count_class[word][rating_class] += 1 #increment 
-                    self.total_words_class[rating_class] += 1 #increment total number of unique words
-        
-                    
+                        if rating_class not in self.word_count_class[word]:
+                            self.word_count_class[word][rating_class] = 0
+                        self.word_count_class[word][rating_class] += 1
+                        self.total_words_class[rating_class] += 1         
 
 
     def train(self):
@@ -119,7 +142,7 @@ class NaiveBayesClassifier:
         for c in self.classes:
             self.priors[c] = class_counts[c] / total_count
 
-        #Calculate likelihoods for non-word features! Change
+        #Calculate likelihoods for non-word features
         for feature in self.categorical_features.keys():
             num_unique_values = len(self.categorical_features[feature])
             if feature not in self.likelihoods:
@@ -196,12 +219,22 @@ if __name__ == "__main__":
 
     classifier = NaiveBayesClassifier()
     # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
-    features = ["item_id", "user_zip_code", "user_review"]
+
+    #For submission _UNCOMMENT_
+    features = ["user_zip_code", "user_id"] #OPETIMAL FEATURE SET
     classifier.load_data(train_set, features, True)
     classifier.train()
     predictions = classifier.predict(test_set, print_results=True)
-    # classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
 
+
+    # #Optimization, comment when submission
+    # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
+    # feature_opt = [""]
+    # classifier.load_data(train_set, features, True)
+    # classifier.train()
+    # print(classifier.categorical_features)
+    # predictions = classifier.predict(test_set, print_results=False)
+    # classifier.evaluate(pd.read_json(test_set)["rating"].tolist(), predictions)
     # find_optimal_features(features, train_set, test_set)
 
     # #Pandas prep
