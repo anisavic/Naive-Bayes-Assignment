@@ -133,7 +133,7 @@ class NaiveBayesClassifier:
                     word_frequencies[word] = word_frequencies.get(word, 0) + 1
             
             # Second pass: only add words that appear at least 5 times
-            MIN_FREQUENCY = 20
+            MIN_FREQUENCY = 30
             for index, instance in self.train_data.iterrows():
                 review_words = preprocess_text(instance["user_review"])
                 rating_class = instance["rating"]
