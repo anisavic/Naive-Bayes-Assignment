@@ -220,7 +220,7 @@ if __name__ == "__main__":
     classifier = NaiveBayesClassifier()
     # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
     #For submission _UNCOMMENT_
-    features = ["user_zip_code", "user_id"] #OPETIMAL FEATURE SET
+    features = ["user_zip_code", "user_id", "item_id"] #OPETIMAL FEATURE SET
     classifier.load_data(train_set, features, True)
     classifier.train()
     predictions = classifier.predict(test_set, print_results=True)
