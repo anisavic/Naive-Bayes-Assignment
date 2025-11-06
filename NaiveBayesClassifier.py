@@ -17,7 +17,7 @@ stop_words = {
     'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here',
     'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few',
     'most', 'other', 'some', 'such', 'no', 'nor', 'only', 'own', 'same', 'so',
-    'than', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now', 'm', 'll', 're', 've', 'y', "very", "not", "more", "no", "too"
+    'than', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now', 'm', 'll', 're', 've', 'y'
 }
 
 #define punctuation translator
@@ -219,7 +219,6 @@ if __name__ == "__main__":
 
     classifier = NaiveBayesClassifier()
     # features = ["user_gender", "user_occupation", "user_id", "item_id", "user_zip_code"]
-
     #For submission _UNCOMMENT_
     features = ["user_zip_code", "user_id"] #OPETIMAL FEATURE SET
     classifier.load_data(train_set, features, True)
